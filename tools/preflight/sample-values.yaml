@@ -1,0 +1,41 @@
+sam:
+  dnsName: "sam.example.com"
+  sessionSecretKey: "replace-with-secure-random-string"
+
+broker:
+  url: "wss://your-broker.messaging.solace.cloud:443"
+  clientUsername: "your-broker-username"
+  password: "your-broker-password"
+  vpn: "your-broker-vpn"
+
+llmService:
+  planningModel: "gpt-4o"
+  generalModel: "gpt-4o"
+  reportModel: "gpt-4o"
+  imageModel: "dall-e-3"
+  transcriptionModel: "whisper-1"
+  llmServiceEndpoint: "https://api.openai.com/v1"
+  llmServiceApiKey: "your-openai-api-key"
+
+# External persistence (production-style)
+global:
+  persistence:
+    enabled: false
+    namespaceId: "solace-agent-mesh"
+
+dataStores:
+  database:
+    host: "your-postgresql-host"
+    port: "5432"
+    adminUsername: "postgres"
+    adminPassword: "your-admin-password"
+    applicationPassword: "your-application-password"
+  s3:
+    endpointUrl: "https://s3.amazonaws.com"
+    bucketName: "your-artifacts-bucket"
+    connectorSpecBucketName: "your-connector-specs-bucket"
+    accessKey: "your-s3-access-key"
+    secretKey: "your-s3-secret-key"
+
+samDeployment:
+  imagePullSecret: "your-registry-secret"

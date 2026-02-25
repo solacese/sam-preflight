@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sam-preflight"
+version = "0.1.0"
+description = "CLI preflight checks for Solace Agent Mesh Kubernetes installs"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "Solace Community" }]
+dependencies = [
+  "rich>=13.7.0",
+  "PyYAML>=6.0.0",
+  "requests>=2.31.0",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8.0.0"]
+
+[project.scripts]
+sam-preflight = "sam_preflight.cli:entrypoint"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["sam_preflight*"]
+
+[tool.setuptools.package-data]
+sam_preflight = ["data/*.yaml"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

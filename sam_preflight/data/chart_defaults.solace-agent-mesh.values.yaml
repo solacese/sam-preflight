@@ -1,0 +1,309 @@
+# Sam configuration
+sam:
+  enterprise: true
+  # Authentication and authorization configuration
+  # When enabled, SAM will enforce RBAC authorization
+  # When disabled (for dev/quickstart), all users have admin access
+  authorization:
+    enabled: true
+  # DNS name configured in Agent Mesh (SAM) for accessing the web UI and API
+  # This should be a DNS-resolvable name pointing to the LoadBalancer IP
+  # assigned to the service by your cloud provider
+  dnsName: "dns-hostname-here" # e.g., sam.example.com
+  sessionSecretKey: "my-secret-key"
+  # The oidc configuration is required for enterprise mode with authentication
+  # If not using OIDC, set the oidc section to null or remove it
+  # and the authentication will be disabled
+  oauthProvider:
+    oidc:
+      issuer: "" # e.g., https://accounts.google.com, leave empty to turn off oidc.
+      clientId: "oidc-client-id-here" # e.g., your-client-id
+      clientSecret: "oidc-client-secret-here" # e.g., your-client-secret
+
+  # Optional URL overrides for local development (e.g., kubectl port-forward)
+  # Leave empty to use auto-computed URLs based on ingress/service configuration
+  frontendServerUrl: ""    # Override computed frontend URL
+  platformServiceUrl: ""   # Override computed platform API URL
+
+  # CORS configuration for Platform Service
+  cors:
+    # Regex pattern for additional allowed origins (uses Python re.fullmatch)
+    # Leave empty for production. For local dev, see samples/values/local-k8s-values.yaml
+    allowedOriginRegex: ""
+
+  # Task logging configuration (requires SQL session storage)
+  taskLogging:
+    enabled: true
+    logStatusUpdates: true
+    logArtifactEvents: false
+    logFileParts: true
+    maxFilePartSizeBytes: 10240
+    hybridBuffer:
+      enabled: true
+      flushThreshold: 10
+
+  # User to role assignments for RBAC
+  authenticationRbac:
+    users:
+      - identity: "admin@example.com" # can be email, username, name, etc.
+        roles: ["sam_admin"]
+        description: "SAM Administrator Account"
+      - identity: "user1@example.com"
+        roles: ["sam_user"]
+        description: "Standard SAM User"
+
+# Solace Broker configuration
+# This is required to connect to provide connectivity to SAM components
+broker:
+  url: "wss://broker-url:port" # e.g., wss://mr2zq0g0f1.messaging.solace.cloud:443
+  clientUsername: "broker-username"
+  password: "broker-password"
+  vpn: "broker-vpn-name"
+
+# LLM Service configuration
+# This is required to connect to your LLM service (e.g., OpenAI)
+llmService:
+  planningModel: "planningModel" # e.g., "gpt-4o"
+  generalModel: "generalModel" # e.g., "gpt-4o"
+  reportModel: "reportModel" # e.g., "gpt-4o"
+  imageModel: "imageModel" # e.g., "dall-e-3"
+  transcriptionModel: "transcriptionModel" # e.g., "whisper-1"
+  llmServiceEndpoint: "https://api.openai.com/v1"
+  llmServiceApiKey: "your-llm-service-api-key"
+
+# Kubernetes Service configuration
+# This defines how the SAM service is exposed within the cluster
+service:
+  # Service type: ClusterIP (default), NodePort, or LoadBalancer
+  # ClusterIP: Internal cluster access only (use with port-forward or Ingress)
+  # NodePort: Exposes service on each node's IP at a static port
+  # LoadBalancer: Provisions a cloud load balancer (requires cloud provider or MetalLB)
+  type: ClusterIP
+
+  # Annotations for the service (e.g., cloud-specific load balancer configurations)
+  annotations: {}
+    # Example for AWS:
+    # service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+    # Example for GCP:
+    # cloud.google.com/load-balancer-type: "Internal"
+
+  # NodePort configuration (only used when type: NodePort)
+  # Leave empty for automatic port assignment
+  nodePorts:
+    http: ""           # 30000-32767 (WebUI HTTP)
+    https: ""          # 30000-32767 (WebUI HTTPS)
+    auth: ""           # 30000-32767 (Auth Service)
+    platformHttp: ""   # 30000-32767 (Platform API HTTP)
+    platformHttps: ""  # 30000-32767 (Platform API HTTPS)
+
+  # TLS/SSL configuration for LoadBalancer/NodePort (pod-level TLS termination)
+  # Required when using service.type: LoadBalancer or NodePort with HTTPS
+  # Not needed when using Ingress (TLS terminates at Ingress/ALB level)
+  tls:
+    enabled: true
+    # Option 1: Reference an existing Kubernetes TLS secret (recommended)
+    # The secret must be type kubernetes.io/tls with tls.crt and tls.key
+    existingSecret: ""
+    # Option 2: Provide cert/key inline via --set-file during helm install
+    # Example: --set-file service.tls.cert=/path/to/tls.crt --set-file service.tls.key=/path/to/tls.key
+    cert: ""
+    key: ""
+    passphrase: ""
+
+# Kubernetes Ingress configuration
+# Ingress provides HTTP/HTTPS routing to the SAM service
+# This is the recommended approach for production environments
+# NOTE: When using Ingress, TLS termination typically happens at the Ingress/ALB level
+# using certificates managed by cert-manager or AWS ACM. You can disable service.tls
+# and use HTTP backends (port 80) for better performance.
+ingress:
+  enabled: false
+
+  # Ingress class name (e.g., nginx, traefik, gce, alb)
+  # Leave empty to use the cluster's default ingress class
+  className: ""
+
+  # Annotations for the ingress resource
+  # These vary by ingress controller
+  annotations: {}
+    # Example for NGINX Ingress Controller:
+    # nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    # nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+    # Example for cert-manager (automatic TLS):
+    # cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    # Example for AWS ALB Ingress Controller:
+    # alb.ingress.kubernetes.io/scheme: internet-facing
+    # alb.ingress.kubernetes.io/target-type: ip
+    # alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:region:account:certificate/id
+    # alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS":443}]'
+    # external-dns.alpha.kubernetes.io/hostname: sam.example.com
+
+  # Automatic path configuration (recommended)
+  # When true, the chart automatically generates all required ingress paths:
+  #   - /api/v1/platform/* -> Platform Service
+  #   - /login, /callback, /is_token_valid, /exchange-code -> Auth Service
+  #   - /* -> WebUI Service
+  # This simplifies configuration and ensures correct routing on upgrades.
+  # Set to false only if you need custom path routing.
+  autoConfigurePaths: true
+
+  # Hostname for the ingress (used when autoConfigurePaths: true)
+  # Leave empty for ALB/ELB ingress controllers (accepts all hostnames)
+  # Set to your domain for name-based virtual hosting (e.g., sam.example.com)
+  host: ""
+
+  # Advanced: Manual hosts/paths configuration (only used when autoConfigurePaths: false)
+  # Most users should use autoConfigurePaths: true instead.
+  # If you need custom routing, set autoConfigurePaths: false and configure hosts below.
+  hosts: []
+    # - host: "sam.example.com"
+    #   paths:
+    #     - path: /api/v1/platform
+    #       pathType: Prefix
+    #       portName: platform
+    #     - path: /login
+    #       pathType: Prefix
+    #       portName: auth
+    #     - path: /callback
+    #       pathType: Prefix
+    #       portName: auth
+    #     - path: /
+    #       pathType: Prefix
+    #       portName: webui
+
+  # TLS configuration for ingress
+  tls: []
+    # - secretName: sam-tls
+    #   hosts:
+    #     - sam.example.com
+
+# Additional environment variables for SAM configuration
+# These are injected into the containers and used for runtime configuration
+# Note: Variables already configured through dedicated values.yaml sections
+# (solaceBroker, llm, sam, tls, global.persistence) should not be duplicated here
+environmentVariables: {}
+  # Example custom variables:
+  # CUSTOM_VAR: "value"
+# ANOTHER_VAR: "another-value"
+
+# Global Configuration
+global:
+  # Optional: Override the default image registry for all images
+  # Uncomment to use internal GCR registry (requires imagePullSecret)
+  # imageRegistry: gcr.io/gcp-maas-prod
+
+  # Persistence configuration
+  persistence:
+    # Unique identifier for this SAM installation (used for database/user scoping in all persistence modes)
+    namespaceId: "solace-agent-mesh"
+    # Enable embedded PostgreSQL and SeaweedFS (for dev/POC only, not for production)
+    # For production, use external datastores and set this to false
+    enabled: false
+
+# SAM Deployment configuration
+samDeployment:
+  # Kubernetes Service Account configuration
+  # The service account must have permissions to create and manage resources
+  # such as Deployments, Services, ConfigMaps, and Secrets
+  # NOTE: If you change the service account name, you must also update
+  # persistence-layer.postgresql.serviceAccountName and
+  # persistence-layer.seaweedfs.serviceAccountName when using bundled persistence
+  serviceAccount:
+    name: solace-agent-mesh-sa
+
+  # Image pull secret for accessing private container registries
+  # This secret is attached to the service account above, allowing all pods
+  # using that service account (including bundled persistence) to pull images
+  # imagePullSecret: ""
+
+  # Main SAM application container image
+  image:
+    repository: gcr.io/gcp-maas-prod/solace-agent-mesh-enterprise
+    tag: 1.65.45
+    pullPolicy: Always
+
+
+  # Agent/Gateway Deployer configuration (required for enterprise mode)
+  # This container is responsible for deploying and managing agents and gateways
+  agentDeployer:
+    image:
+      repository: gcr.io/gcp-maas-prod/sam-agent-deployer
+      tag: 1.6.3
+      pullPolicy: Always
+    version: "k8s-1.0.1"
+    # Full URL to the unified Helm chart for deploying agents and gateways
+    chartUrl: "https://solaceproducts.github.io/solace-agent-mesh-helm-quickstart/sam-agent-1.2.2.tgz"
+
+  # Deployment strategy and update configuration
+  # use Recreate as SAM does not support multiple replicas
+  # at this time
+  rollout:
+    rollingUpdate: {}
+    strategy: RollingUpdate
+
+  # Pod security context and container security context
+  podSecurityContext:
+    runAsUser: 10001
+    fsGroup: 10002
+  securityContext:
+    allowPrivilegeEscalation: false
+
+  # Scheduling and labeling configuration
+  nodeSelector: {}
+  tolerations: []
+  annotations: {}
+  podAnnotations: {}
+  podLabels: {}
+
+  # Resource requests and limits for the SAM and Agent Deployer containers
+  # Adjust these values based on your workload and cluster capacity
+  resources:
+    sam:
+      requests:
+        cpu: 1000m
+        memory: 1024Mi
+      limits:
+        cpu: 2000m
+        memory: 2048Mi
+    agentDeployer:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 200m
+        memory: 512Mi
+
+# extraSecretEnvironmentVars is a list of extra environment variables.
+# These variables take value from existing Secret objects.
+extraSecretEnvironmentVars: []
+  # - envName: LLM_SERVICE_API_KEY
+  #   secretName: my-existing-secret
+  #   secretKey: LLM_SERVICE_API_KEY
+
+dataStores:
+  database:
+    protocol: "postgresql+psycopg2"
+    host: ""
+    port: "5432"
+    adminUsername: ""
+    adminPassword: ""
+    # Application database user password (required when using external persistence with global.persistence.enabled=false)
+    # This single password will be used for all database users (webui, orchestrator, platform, and all agents)
+    applicationPassword: ""
+    supabaseTenantId: ""  # Supabase project ID (qualifies usernames as username.projectid when using Supabase's connection pooler on an IPv4 network)
+  s3:
+    endpointUrl: ""
+    bucketName: ""
+    connectorSpecBucketName: ""
+    accessKey: ""
+    secretKey: ""
+
+persistence-layer:
+  postgresql:
+    serviceAccountName: solace-agent-mesh-sa
+    commonLabels:
+      app.kubernetes.io/service: "database"
+  seaweedfs:
+    serviceAccountName: solace-agent-mesh-sa
+    commonLabels:
+      app.kubernetes.io/service: "s3"
