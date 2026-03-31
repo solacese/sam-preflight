@@ -97,6 +97,7 @@ def build_context(args: Namespace) -> PreflightContext:
     profile = args.profile or env.get("SAM_PREFLIGHT_PROFILE", "medium")
     json_output = bool(args.json_output)
     interactive = bool(args.interactive)
+    skip_checks = set(args.skip_checks) if args.skip_checks else set()
 
     return PreflightContext(
         values=merged_values,
@@ -106,4 +107,5 @@ def build_context(args: Namespace) -> PreflightContext:
         json_output=json_output,
         interactive=interactive,
         env=env,
+        skip_checks=skip_checks,
     )

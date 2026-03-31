@@ -4,6 +4,7 @@ import shutil
 import subprocess
 
 from sam_preflight.models import CheckResult, CheckStatus, PreflightContext
+from sam_preflight.values_merge import get_by_path
 
 
 def _run_kubectl(args: list[str], timeout: int = 10) -> subprocess.CompletedProcess[str]:
@@ -92,7 +93,13 @@ def run(context: PreflightContext) -> list[CheckResult]:
         "serviceaccounts",
         "roles.rbac.authorization.k8s.io",
         "rolebindings.rbac.authorization.k8s.io",
+        "persistentvolumeclaims",
     ]
+
+    # Ingress resources needed if ingress is enabled
+    ingress_enabled = get_by_path(context.values, "ingress.enabled", False)
+    if ingress_enabled:
+        resources.append("ingresses.networking.k8s.io")
 
     denied: list[str] = []
     command_errors: list[str] = []

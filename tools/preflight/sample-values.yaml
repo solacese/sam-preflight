@@ -1,28 +1,40 @@
-sam:
-  dnsName: "sam.example.com"
-  sessionSecretKey: "replace-with-secure-random-string"
+# =============================================================================
+# SAM Enterprise - Sample Helm Values for Preflight
+# =============================================================================
+# Copy this file and replace placeholder values with your actual configuration.
+# See the README for environment variable alternatives.
 
+# --- Core SAM settings -------------------------------------------------------
+sam:
+  dnsName: "sam.example.com"                        # Public DNS name for the SAM UI
+  sessionSecretKey: "replace-with-secure-random-string"  # Random secret for session signing
+
+# --- Event broker connection -------------------------------------------------
 broker:
   url: "wss://your-broker.messaging.solace.cloud:443"
   clientUsername: "your-broker-username"
   password: "your-broker-password"
   vpn: "your-broker-vpn"
 
+# --- LLM / AI service -------------------------------------------------------
 llmService:
   planningModel: "gpt-4o"
   generalModel: "gpt-4o"
   reportModel: "gpt-4o"
   imageModel: "dall-e-3"
   transcriptionModel: "whisper-1"
-  llmServiceEndpoint: "https://api.openai.com/v1"
+  llmServiceEndpoint: "https://api.openai.com/v1"   # Any OpenAI-compatible endpoint
   llmServiceApiKey: "your-openai-api-key"
 
-# External persistence (production-style)
+# --- Persistence -------------------------------------------------------------
+# Set global.persistence.enabled: true  for bundled (in-cluster PostgreSQL + SeaweedFS).
+# Set global.persistence.enabled: false for external (bring your own PostgreSQL + S3).
 global:
   persistence:
     enabled: false
     namespaceId: "solace-agent-mesh"
 
+# External persistence (only required when global.persistence.enabled is false)
 dataStores:
   database:
     host: "your-postgresql-host"
@@ -37,5 +49,7 @@ dataStores:
     accessKey: "your-s3-access-key"
     secretKey: "your-s3-secret-key"
 
+# --- Private registry --------------------------------------------------------
+# Only needed if images are pulled from a private container registry.
 samDeployment:
   imagePullSecret: "your-registry-secret"

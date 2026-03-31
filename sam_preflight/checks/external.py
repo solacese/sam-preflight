@@ -71,7 +71,7 @@ def check_semp(context: PreflightContext) -> CheckResult:
     )
 
 
-def check_openai(context: PreflightContext) -> CheckResult:
+def check_openai(context: PreflightContext) -> tuple[CheckResult, requests.Response | None]:
     env_key = context.env.get("OPENAI_API_KEY")
     env_base = context.env.get("OPENAI_BASE_URL")
 
@@ -87,7 +87,7 @@ def check_openai(context: PreflightContext) -> CheckResult:
             name="OpenAI API readiness",
             status=CheckStatus.WARN,
             details="Skipped: OpenAI API key not configured.",
-        )
+        ), None
 
     if not is_effectively_configured(base_url):
         return CheckResult(
@@ -95,7 +95,7 @@ def check_openai(context: PreflightContext) -> CheckResult:
             name="OpenAI API readiness",
             status=CheckStatus.WARN,
             details="Skipped: OpenAI base URL not configured.",
-        )
+        ), None
 
     base_url_str = str(base_url).rstrip("/")
     models_url = (
@@ -115,7 +115,7 @@ def check_openai(context: PreflightContext) -> CheckResult:
             status=CheckStatus.FAIL,
             details=f"OpenAI models request failed: {exc}",
             fix_hint="Check endpoint URL, API key, and outbound network access.",
-        )
+        ), None
 
     if 200 <= response.status_code < 300:
         return CheckResult(
@@ -123,7 +123,7 @@ def check_openai(context: PreflightContext) -> CheckResult:
             name="OpenAI API readiness",
             status=CheckStatus.PASS,
             details="OpenAI-compatible models endpoint responded successfully.",
-        )
+        ), response
 
     return CheckResult(
         check_id="external.openai",
@@ -131,8 +131,76 @@ def check_openai(context: PreflightContext) -> CheckResult:
         status=CheckStatus.FAIL,
         details=f"Models endpoint returned HTTP {response.status_code}.",
         fix_hint="Verify API key validity and endpoint compatibility with OpenAI /v1/models.",
+    ), None
+
+
+MODEL_KEYS = [
+    ("llmService.planningModel", "planning model"),
+    ("llmService.generalModel", "general model"),
+    ("llmService.reportModel", "report model"),
+    ("llmService.imageModel", "image model"),
+    ("llmService.transcriptionModel", "transcription model"),
+]
+
+
+def check_model_availability(context: PreflightContext, response: requests.Response) -> CheckResult:
+    """Parse the models response and verify configured models are available."""
+    try:
+        data = response.json()
+        available_ids = {m.get("id", "") for m in data.get("data", [])}
+    except Exception:
+        return CheckResult(
+            check_id="external.models",
+            name="LLM model availability",
+            status=CheckStatus.WARN,
+            details="Could not parse models response to verify model availability.",
+        )
+
+    if not available_ids:
+        return CheckResult(
+            check_id="external.models",
+            name="LLM model availability",
+            status=CheckStatus.WARN,
+            details="Models endpoint returned no models. Cannot verify configured models.",
+        )
+
+    missing: list[str] = []
+    found: list[str] = []
+
+    for path, label in MODEL_KEYS:
+        model_name = get_by_path(context.values, path)
+        if not is_effectively_configured(model_name):
+            continue
+        model_str = str(model_name).strip()
+        if model_str in available_ids:
+            found.append(model_str)
+        else:
+            missing.append(f"{label} ({model_str})")
+
+    if missing:
+        return CheckResult(
+            check_id="external.models",
+            name="LLM model availability",
+            status=CheckStatus.WARN,
+            details="Models not found at endpoint: " + ", ".join(missing) + ".",
+            fix_hint="Verify model names match what your LLM provider offers. Some providers don't list all models.",
+        )
+
+    return CheckResult(
+        check_id="external.models",
+        name="LLM model availability",
+        status=CheckStatus.PASS,
+        details=f"All {len(found)} configured models found at the endpoint.",
     )
 
 
 def run(context: PreflightContext) -> list[CheckResult]:
-    return [check_semp(context), check_openai(context)]
+    results = [check_semp(context)]
+
+    openai_result, openai_response = check_openai(context)
+    results.append(openai_result)
+
+    if openai_response is not None:
+        results.append(check_model_availability(context, openai_response))
+
+    return results

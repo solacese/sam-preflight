@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 from typing import Sequence
 
+from sam_preflight import __version__
 from sam_preflight.check_runner import compute_exit_code, run_all_checks
 from sam_preflight.config import build_context
 from sam_preflight.render import render_console, render_json
@@ -11,8 +12,9 @@ from sam_preflight.render import render_console, render_json
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="sam-preflight",
-        description="Run preflight checks before installing Solace Agent Mesh on Kubernetes.",
+        description="Run preflight checks before installing Solace Agent Mesh Enterprise on Kubernetes.",
     )
+    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     parser.add_argument("--values", help="Path to Helm values.yaml file.")
     parser.add_argument("--namespace", help="Target Kubernetes namespace for install checks.")
     parser.add_argument(
@@ -39,6 +41,18 @@ def build_parser() -> argparse.ArgumentParser:
         default=[],
         metavar="key=value",
         help="Override a value path (repeatable), e.g. --set sam.dnsName=sam.example.com",
+    )
+    parser.add_argument(
+        "--skip",
+        dest="skip_checks",
+        action="append",
+        default=[],
+        metavar="CHECK",
+        help=(
+            "Skip a check module by name (repeatable). "
+            "Names: tooling, helm_repo, config, dns, namespace_rbac, registry, "
+            "storage, capacity, networking, external, helm_dryrun."
+        ),
     )
     return parser
 

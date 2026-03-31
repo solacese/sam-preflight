@@ -3,25 +3,53 @@ from __future__ import annotations
 import time
 from typing import Callable
 
-from sam_preflight.checks import capacity, config, external, namespace_rbac, registry, tooling
+from sam_preflight.checks import (
+    capacity,
+    config,
+    dns,
+    external,
+    helm_dryrun,
+    helm_repo,
+    namespace_rbac,
+    networking,
+    registry,
+    storage,
+    tooling,
+)
 from sam_preflight.models import CheckResult, CheckStatus, PreflightContext
 
 CheckFn = Callable[[PreflightContext], list[CheckResult]]
 
-CHECKS: list[CheckFn] = [
-    tooling.run,
-    config.run,
-    namespace_rbac.run,
-    registry.run,
-    capacity.run,
-    external.run,
+CHECKS: list[tuple[str, CheckFn]] = [
+    ("tooling", tooling.run),
+    ("helm_repo", helm_repo.run),
+    ("config", config.run),
+    ("dns", dns.run),
+    ("namespace_rbac", namespace_rbac.run),
+    ("registry", registry.run),
+    ("storage", storage.run),
+    ("capacity", capacity.run),
+    ("networking", networking.run),
+    ("external", external.run),
+    ("helm_dryrun", helm_dryrun.run),
 ]
 
 
 def run_all_checks(context: PreflightContext) -> list[CheckResult]:
     results: list[CheckResult] = []
 
-    for check_fn in CHECKS:
+    for check_name, check_fn in CHECKS:
+        if check_name in context.skip_checks:
+            results.append(
+                CheckResult(
+                    check_id=f"skip.{check_name}",
+                    name=f"{check_name} (skipped)",
+                    status=CheckStatus.WARN,
+                    details=f"Skipped via --skip {check_name}.",
+                )
+            )
+            continue
+
         started = time.perf_counter()
         try:
             check_results = check_fn(context)

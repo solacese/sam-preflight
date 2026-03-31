@@ -30,3 +30,4 @@ class PreflightContext:
     json_output: bool
     interactive: bool
     env: dict[str, str] = field(default_factory=dict)
+    skip_checks: set[str] = field(default_factory=set)
